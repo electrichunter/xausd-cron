@@ -1,0 +1,7 @@
+services:
+  - type: cron
+    name: xausd-price-logger
+    schedule: "*/5 * * * *"  # Her 5 dakikada bir
+    runtime: python
+    buildCommand: ""
+    startCommand: "python main.py"
