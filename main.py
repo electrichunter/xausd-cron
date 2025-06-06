@@ -1,51 +1,40 @@
-import requests
 import os
+import requests
+import time
 from datetime import datetime
+from supabase import create_client, Client
 from dotenv import load_dotenv
 
-load_dotenv()
+from pathlib import Path
+load_dotenv(dotenv_path=Path('.env'))
 
-TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY")
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_API_KEY = os.getenv("SUPABASE_API_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_API_KEY")  # <-- burası
 
-def get_xauusd():
-    url = "https://api.twelvedata.com/price"
-    params = {
-        "symbol": "XAU/USD",
-        "apikey": TWELVE_DATA_API_KEY
-    }
-    response = requests.get(url, params=params)
+API_KEY = os.getenv("TWELVEDATA_API_KEY")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def fetch_price():
+    url = f"https://api.twelvedata.com/price?symbol=XAU/USD&apikey={API_KEY}"
+    response = requests.get(url)
     data = response.json()
-    return {
-        "price": float(data["price"]),
-        "time": datetime.utcnow().isoformat()
-    }
 
-def insert_to_supabase(price_data):
-    headers = {
-        "apikey": SUPABASE_API_KEY,
-        "Authorization": f"Bearer {SUPABASE_API_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-    }
+    if "price" in data:
+        now = datetime.utcnow().isoformat()
+        value = float(data["price"])
 
-    payload = {
-        "time": price_data["time"],
-        "price": price_data["price"]
-    }
-
-    response = requests.post(
-        f"{SUPABASE_URL}/rest/v1/xausd_prices",
-        headers=headers,
-        json=payload
-    )
-
-    if response.status_code in [200, 201, 204]:
-        print("✅ Veri Supabase'e kaydedildi.")
+        # Supabase'e kaydet
+        supabase.table("altin_fiyatlari").insert({"time": now, "value": value}).execute()
+        print(f"[{now}] Veri kaydedildi: {value}")
     else:
-        print("❌ Hata:", response.text)
+        print("Veri çekme hatası:", data)
 
 if __name__ == "__main__":
-    data = get_xauusd()
-    insert_to_supabase(data)
+    while True:
+        fetch_price()
+        time.sleep(300)  # 5 dakika
+print("SUPABASE_URL:", SUPABASE_URL)
+print("SUPABASE_KEY:", SUPABASE_KEY)
+print("API_KEY:", API_KEY)
